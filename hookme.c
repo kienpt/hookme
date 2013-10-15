@@ -74,9 +74,9 @@ static struct rw_semaphore myrwsema;
 
 void initACL(char* buff)
 {
-//buff is content of the hookme_rules.txt file
-//Initilize the  here
-//This function is called by sys_read, when the hookme_rules.txt file is opened
+	//buff is content of the hookme_rules.txt file
+	//Initilize the  here
+	//This function is called by sys_read, when the hookme_rules.txt file is opened
 }
 
 ACL* getRule(int uid, char* filename)
@@ -110,7 +110,7 @@ asmlinkage long my_sys_open(const char __user* filename, int flags, int mode)
 	_curFilename = getname(filename); //this is needed because filename is in userspace
 	if (strcmp(_curFilename, "/home/kien/Desktop/infosec/Assignment5-KienPham/hookme_rules.txt") == 0)
 		printk(KERN_INFO "The file [%s] is being opened\n", _curFilename);
-	
+
 	//Get current user id
 	int uid = current_uid();
 	ACL* acl = getRule(uid, _curFilename);//Get the entry that corresponds to (uid, _curFilename) if it exists
@@ -169,7 +169,7 @@ asmlinkage long my_sys_read(unsigned int fd, char __user* buf, size_t count)
 		{
 			char* keyword = acl->_kw_r;
 			//Modify buff based on keyword here
-			
+
 		}
 	}
 
@@ -179,19 +179,19 @@ asmlinkage long my_sys_read(unsigned int fd, char __user* buf, size_t count)
 
 asmlinkage long my_sys_write(unsigned int fd, char __user* buf, size_t count)
 {
-        long ret = 0;
-        down_read(&myrwsema);
+	long ret = 0;
+	down_read(&myrwsema);
 
-        ret = sys_write_orig(fd, buf, count);
+	ret = sys_write_orig(fd, buf, count);
 	int uid = current_uid();
-        ACL *acl = getRule(uid, _curFilename);
+	ACL *acl = getRule(uid, _curFilename);
 	if (acl != NULL)
 	{
 	}
 	if (strcmp(_curFilename, "/home/kien/Desktop/infosec/Assignment5-KienPham/hookme_rules.txt") == 0)
 		printk(KERN_INFO "File content has been written \n");
 	up_read(&myrwsema);
-        return (ret);
+	return (ret);
 }
 
 int set_addr_rw(unsigned long addr)
@@ -247,8 +247,8 @@ int init_module(void)
 	printk(KERN_INFO "Saving sys_read @ [0x%08lx]\n", sys_call_table[__NR_read]);
 	sys_read_orig = (sys_read_func_ptr)(sys_call_table[__NR_read]);
 	sys_call_table[__NR_read] = (long)&my_sys_read;
-	
-	printk(KERN_INFO "Saving sys_write @ [0x%08lx]\n", sys_call_table[__NR_read]);
+
+	printk(KERN_INFO "Saving sys_write @ [0x%08lx]\n", sys_call_table[__NR_write]);
 	sys_write_orig = (sys_write_func_ptr)(sys_call_table[__NR_write]);
 	sys_call_table[__NR_write] = (long)&my_sys_write;
 
@@ -263,18 +263,27 @@ void cleanup_module(void)
 	if (sys_open_orig != NULL)
 	{
 		set_addr_rw( (unsigned long)sys_call_table);
-
 		printk(KERN_INFO "Restoring sys_open\n");
 		sys_call_table[__NR_open] = (long)sys_open_orig; 
-
-		printk(KERN_INFO "Restoring sys_read\n");
-		sys_call_table[__NR_read] = (long)sys_read_orig; 
-
-		printk(KERN_INFO "Restoring sys_write\n");
-		sys_call_table[__NR_write] = (long)sys_write_orig;
-
 		set_addr_ro( (unsigned long)sys_call_table);
 	}
+
+	if (sys_read_orig != NULL)
+	{
+		set_addr_rw( (unsigned long)sys_call_table);
+		printk(KERN_INFO "Restoring sys_read\n");
+		sys_call_table[__NR_read] = (long)sys_read_orig; 
+		set_addr_ro( (unsigned long)sys_call_table);
+	}
+
+	if (sys_write_orig != NULL)
+	{
+		set_addr_rw( (unsigned long)sys_call_table);
+		printk(KERN_INFO "Restoring sys_write\n");
+		sys_call_table[__NR_write] = (long)sys_write_orig;
+		set_addr_ro( (unsigned long)sys_call_table);
+	}
+
 
 	//after the system call table has been restored - we will need to wait
 	printk(KERN_INFO "Checking the semaphore as a write ...\n");
